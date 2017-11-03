@@ -57,7 +57,7 @@ $LIVE_TRACKERS_LIST_CMD | while read TRACKER
 do
 	if [ "$TRACKER" != "" ]; then
 		echo -ne "\e[0;36;1mAdding $TRACKER\e[0;36m"
-		$TRANSMISSION_REMOTE -t $TORRENTS -td $TRACKER 1>/dev/null 2>&1 
+		$TRANSMISSION_REMOTE -t $PARAMETER -td $TRACKER 1>/dev/null 2>&1 
 		if [ $? -eq 0 ]; then
 			echo -e " -> \e[32mSuccess! "
 		else
