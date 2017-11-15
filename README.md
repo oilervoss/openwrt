@@ -1,3 +1,6 @@
+
+[10.5281/zenodo.1050353](https://doi.org/10.5281/zenodo.1050353)
+
 ## Intro
 This (addtracker) is a bash script to add public trackers to Torrents being downloaded in the hope of getting more peers.
 
