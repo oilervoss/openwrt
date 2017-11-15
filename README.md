@@ -1,20 +1,27 @@
 ## Intro
 This (addtracker) is a bash script to add public trackers to Torrents being downloaded in the hope of getting more peers.
 
-The public trackers are retrievied from a dynamicly checked list ([ngosang](https://github.com/ngosang/trackerslist)).
+The public trackers are retrieved from a dynamically list ([ngosang](https://github.com/ngosang/trackerslist)). If the dynamic list is offline, it will use a static one.
 
 ## Usage
-> Show current Torrents
->
+
 > ```./addtracker```
-
-> Add public trackers to the Torrent of number $somenumber
 >
+> Show current Torrents
+
 > ```./addtracker $somenumber```
-
-> Add public trackers to the first Torrent found with $anyword in the name (case insensitive)
 >
+> Add public trackers to the Torrent of number $somenumber
+
+
 > ```./addtracker $anyword```
+>
+> Add public trackers to the all the Torrents found with $anyword in the name (case insensitive)
+
+>```./addtracker \*```
+>
+> Add public trackers to all the Torrents found
+
 
 ## More scripts
 
