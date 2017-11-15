@@ -1,8 +1,8 @@
 # Openwrt
 
-## [Transmission custom scripts](../../tree/transmission/) for OpenWRT.
+## [Transmission custom scripts](../../../transmission/) for OpenWRT.
 
-## [OpenVPN custom scripts](../../tree/nordvpn/) for [NordVPN](https://ref.nordvpn.com/?id=69780735) in OpenWRT
+## [OpenVPN custom scripts](../../../openvpnfornordvpn/) for [NordVPN](https://ref.nordvpn.com/?id=69780735) in OpenWRT
 
 These are custom scripts for [Openwrt](http://www.openwrt.org). 
 
