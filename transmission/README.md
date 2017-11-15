@@ -1,1 +1,1 @@
-Moved to [Transmission custom scripts](../../../tree/transmission/)
+Moved to [git:oilervoss/transmission](https://github.com/oilervoss/transmission)
