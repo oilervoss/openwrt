@@ -1,0 +1,17 @@
+#!/bin/sh
+#/etc/hotplug.d/block/99-mount-samba
+
+TARGETDISK="ae4d4c27-e460-45a5-a90e-8971198185aa"
+TARGETFOLDER="sea"
+
+if [ "$ACTION" = "add" ] && [ "$DEVTYPE" = "partition" ]; then
+        MNAME=$DEVNAME
+        if [ $(block info /dev/$DEVNAME|sed -r 's:.*UUID=\"(.*)\" V.*:\1:') = $TARGETDISK ]; then
+                MNAME=$TARGETFOLDER
+        fi
+        if [ ! -e /mnt/$MNAME ]; then
+                mkdir /mnt/$MNAME
+        fi
+        mount -o defaults,noatime,noexec /dev/$DEVNAME /mnt/$MNAME
+        logger Added partition /dev/$DEVNAME to /mnt/$MNAME
+fi
