@@ -1,0 +1,187 @@
+#!/bin/sh /etc/rc.common
+#
+
+# External server to check by ping:
+IPPING='8.8.8.8'
+
+START=99
+STOP=99
+
+FINDIFNAME() { ## It finds the first interface that use ncm as protocol from /etc/config/network
+        local N
+        for N in $(uci show network | sed -nr 's:network\.(@?[a-zA-Z@0-9_]+\[?\d*\]?)\..*:\1:p'|sort -u); do
+                if [ "$(uci get network.${N}.proto 2>/dev/null)" == "ncm" ]; then
+                        IFNAME=${N}
+                        DEVICE=$(uci get network.${IFNAME}.device 2>/dev/null)
+                        APN=$(uci get network.${IFNAME}.apn 2>/dev/null)
+                        APNUSER=$(uci get network.${IFNAME}.username 2>/dev/null)
+                        APNPASS=$(uci get network.${IFNAME}.password 2>/dev/null)
+                        IFMODE=$(uci get network.${IFNAME}.mode 2>/dev/null)
+                        if [ -z ${APNPASS} ] || [ -z ${APNUSER} ] || [ -z ${APN} ] || [ -z ${DEVICE} ]; then
+                                RGLOG err "Aborted. Interface ${IFNAME} has some empty setting (device, apn, apn username, apn password or mode)"
+                                return 1
+                        fi
+                        [ -z $IFMODE ] \
+                                && IFMODE=oem
+                        break
+                fi
+        done
+
+        if [ -z ${IFNAME} ]; then
+                RGLOG err "Aborted. An interface using ncm protocol wasn't found in /etc/config/network."
+                return 1
+        fi
+
+        if [ ! -e ${DEVICE} ]; then
+                RGLOG err "Aborted. No such device ${DEVICE}"
+                return 1
+        fi
+        return 0
+}
+
+PPING() {  ## It sends 10 pings to $IPPING
+        local PP=0
+        let PP=$(ping -W 4 -c 10 ${IPPING} 2>/dev/null \
+                | sed -nr 's/.*transmitted, +([0-9]+).*/\1/p')\
+                        +0
+        echo $PP
+}
+
+
+SENDATC() { ## It sends AT commands to the modem 
+        local N
+        local DEVICE=$1
+        shift
+        local COMMAND=$@
+        if [ -z "$DEVICE" -o -z "$COMMAND" ]; then
+                RGLOG err "Wrong arguments for the function SENDAT"
+                return 1
+        fi
+        if [ ! -e ${DEVICE} ]; then
+                RGLOG err "Aborted. No such device ${DEVICE}"
+                return 1
+        fi
+        RGLOG info "Sending ${COMMAND} to ${DEVICE}"
+        timeout 2s \
+                echo -ne "${COMMAND}\r\n" \
+                        > ${DEVICE}
+        return 0
+}
+
+BOOTNCM() {
+
+        FINDIFNAME || exit 1
+        RGLOG info "Turning interface ${IFNAME} down." # Starting to sending  AT commands to ${DEVICE}"
+        [ "$(ifstatus ${IFNAME} 2>/dev/null \
+                | sed  -nr 's/.*\"up\": (true),/\1/p')" == "true" ] \
+                        && [ -n "$(ifdown ${IFNAME} 2>/dev/null)" ] \
+                        && RGLOG warning "Turning interface ${IFNAME} down failed"
+
+                case $IFMODE in
+                        lte )
+                                ATMODE="03"
+                        ;;
+                        umts )
+                                ATMODE="02"
+                        ;;
+                        gsm )
+                                ATMODE="01"
+                        ;;
+                        preferlte )
+                                ATMODE="030201"
+                        ;;
+                        preferumts )
+                                ATMODE="0201"
+                        ;;
+                        auto )
+                                ATMODE="00"
+                        ;;
+                esac
+                RGLOG info "AT commands ended. Turning interface ${IFNAME} up"
+                [ -n "$(ifup ${IFNAME} 2>/dev/null)" ] \
+                        && RGLOG warning "Turning interface ${IFNAME} up failed"
+}
+
+CRONTAB() { ## It checks whether the service is enabled and creates or deletes a cron job.
+        if [ -e /etc/rc.d/S99ncm-fix ]; then
+                if [ -z "$(sed -n ":\/etc\/init.d\/ncm-fix:p" /etc/crontabs/root 2>/dev/null)" ]; then
+                        RGLOG notice "Creating crontab rule and reloading the service"
+                        echo "*/20      *       *       *       *       /etc/init.d/ncm-fix start" \
+                                >> /etc/crontabs/root
+                        /etc/init.d/cron reload
+                fi
+        else
+                RGLOG notice "Removing crontab rule and reloading the service"
+                echo "$(sed ":\/etc\/init.d\/ncm-fix:d" /etc/crontabs/root 2>/dev/null)" \
+                        >| /etc/crontabs/root
+                /etc/init.d/cron reload
+        fi
+        return 0
+}
+
+RGLOG() { # It logs to the system
+        logger -s -t "ncm-fix[$$]" -p  ${1} "${2}"
+        return 0
+}
+
+
+start() {
+        [ $(pgrep -f ncm-fix\ boot) ] \    # It prevents a concomitant process
+                && [ $(pgrep -f ncm-fix\ start) ] \
+                && exit 0
+        local P=$(PPING)
+        RGLOG debug "Ping had ${P}0% of success"
+        [ $P -ne 0 ] \
+                && exit 0
+        RGLOG warning "${IPPING} couldn't be pinged. Restarting ncm device"
+        BOOTNCM run
+        local N=0
+        while [ ${N} -lt 10 ]; do
+                sleep 5
+                P=$(PPING)
+                [ $P -lt 2 ] \
+                        && let N+=1 \
+                        || break
+        done
+        RGLOG notice "New ping had ${P}0% of success"
+        [ $P -ne 0 ] \
+                && exit 0
+
+        # Desesperated measures in case of no solution
+        sleep 360
+        P=$(PPING)
+        [ $P -ne 0 ] \
+                && exit 0
+        RGLOG err "After 6 minutes, ${DEVICE} didn't come back online. Rebooting"
+        logread | grep "ncm-fix" \
+                >> /root/ncm-fix_reboot.log
+        reboot
+        exit 1
+}
+
+
+stop() { ## WIP
+        BOOTNCM stop
+}
+
+boot() {
+        sleep 360 ## It waits finishing the boot before first run
+        start
+        exit 0
+}
+
+enable() { ## It creates a cron job
+        if [ -z "$(sed -n "/\/etc\/init.d\/ncm-fix/p" /etc/crontabs/root 2>/dev/null)" ]; then
+                RGLOG notice "Creating crontab rule and reloading its service"
+                echo "*/20      *       *       *       *       /etc/init.d/ncm-fix start" \
+                        >> /etc/crontabs/root
+                /etc/init.d/cron reload
+        fi
+}
+
+disable() { ## It deletes the cron job
+        RGLOG notice "Removing crontab rule and reloading its service"
+        echo "$(sed "/\/etc\/init.d\/ncm-fix/d" /etc/crontabs/root 2>/dev/null)" \
+                >| /etc/crontabs/root
+        /etc/init.d/cron reload
+}
